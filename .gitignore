@@ -1,0 +1,13 @@
+.env
+target/
+project/target/
+project/project/
+.bsp/
+.scala-build/
+*.class
+*.log
+*.sqlite
+*.sqlite-journal
+data/
+!data/.gitkeep
+cs

@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scala LogRisk Pipeline</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Scala LogRisk Pipeline</h1>
+    <div style="display:flex; gap:1rem;">
+      <button onclick="runAnalysis()">Run Analysis Now</button>
+      <button onclick="document.getElementById('sampleModal').classList.toggle('hidden')">Analyze Sample</button>
+    </div>
+  </header>
+
+  <div id="sampleModal" class="container hidden" style="background:var(--bg-card); border-bottom:1px solid var(--border);">
+    <h2>Analyze Log Sample</h2>
+    <p>Paste Nginx access logs (combined format):</p>
+    <textarea id="sampleLogs" rows="5"></textarea>
+    <br><br>
+    <button onclick="analyzeSample()">Submit Sample</button>
+  </div>
+
+  <div class="container">
+    <h2 style="margin-bottom: 1rem;">Latest Report Summary</h2>
+    <div id="loading">Loading latest report...</div>
+    
+    <div id="reportData" class="hidden">
+      <div class="grid">
+        <div class="card">
+          <h3>Total Requests</h3>
+          <div class="value" id="valRequests">0</div>
+        </div>
+        <div class="card">
+          <h3>Unique Clients</h3>
+          <div class="value" id="valClients">0</div>
+        </div>
+        <div class="card">
+          <h3>High Risk Events</h3>
+          <div class="value" id="valRisks" style="color: var(--danger)">0</div>
+        </div>
+        <div class="card">
+          <h3>Analyzed At</h3>
+          <div class="value" id="valTime" style="font-size:1.2rem;">-</div>
+        </div>
+      </div>
+
+      <div class="grid" style="grid-template-columns: 1fr 1fr;">
+        <div>
+          <h3>Top Endpoints</h3>
+          <table id="tableEndpoints">
+            <thead><tr><th>Path</th><th>Count</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div>
+          <h3>Suspicious Agents</h3>
+          <table id="tableAgents">
+            <thead><tr><th>User Agent</th><th>Count</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <h3>Risk Events</h3>
+      <table id="tableRisks">
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Reason</th>
+            <th>Evidence</th>
+            <th>Related IP Hash</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      
+      <h3>Recent Reports</h3>
+      <table id="tableReports">
+        <thead>
+          <tr>
+            <th>Analyzed At</th>
+            <th>Source</th>
+            <th>Requests</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
