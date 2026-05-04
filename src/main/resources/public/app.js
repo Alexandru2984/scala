@@ -1,7 +1,9 @@
+let statusChartInstance = null;
+
 async function fetchReports() {
   try {
     const res = await fetch('/api/reports');
-    if (!res.ok) throw new Error('Failed to fetch');
+    if (!res.ok) throw new Error('Failed to fetch reports. Ensure you are authenticated.');
     const reports = await res.json();
     
     document.getElementById('loading').classList.add('hidden');
@@ -11,35 +13,43 @@ async function fetchReports() {
       renderReport(reports[0]);
       renderReportList(reports);
     } else {
-      document.getElementById('loading').innerText = "No reports found.";
-      document.getElementById('loading').classList.remove('hidden');
-      document.getElementById('reportData').classList.add('hidden');
+      document.getElementById('reportData').innerHTML = `
+        <div class="empty-state">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+          <h3>No reports generated yet</h3>
+          <p>Wait for the background job to run, or trigger an analysis manually.</p>
+        </div>
+      `;
     }
   } catch (e) {
     console.error(e);
-    document.getElementById('loading').innerText = "Error loading reports. Check console or login.";
+    document.getElementById('loading').innerHTML = `<div class="text-danger">Error loading reports. Check console or ensure you are logged in.</div>`;
   }
 }
 
 function renderReport(report) {
-  document.getElementById('valRequests').innerText = report.totalRequests;
-  document.getElementById('valClients').innerText = report.uniqueClients;
+  document.getElementById('valRequests').innerText = report.totalRequests.toLocaleString();
+  document.getElementById('valClients').innerText = report.uniqueClients.toLocaleString();
   document.getElementById('valTime').innerText = new Date(report.analyzedAt).toLocaleString();
+  document.getElementById('valSource').innerText = report.sourceName;
   
+  // Endpoints
   const endpoints = JSON.parse(report.topEndpointsJson);
   const tbodyE = document.querySelector('#tableEndpoints tbody');
   tbodyE.innerHTML = '';
   for (const [path, count] of Object.entries(endpoints)) {
-    tbodyE.innerHTML += `<tr><td>${path}</td><td>${count}</td></tr>`;
+    tbodyE.innerHTML += `<tr><td><span class="code-snippet">${path}</span></td><td style="text-align: right; font-weight: 500;">${count.toLocaleString()}</td></tr>`;
   }
   
+  // Agents
   const agents = JSON.parse(report.suspiciousAgentsJson);
   const tbodyA = document.querySelector('#tableAgents tbody');
   tbodyA.innerHTML = '';
   for (const [agent, count] of Object.entries(agents)) {
-    tbodyA.innerHTML += `<tr><td>${agent}</td><td>${count}</td></tr>`;
+    tbodyA.innerHTML += `<tr><td style="color: var(--text-secondary);">${agent || '<em>Empty User Agent</em>'}</td><td style="text-align: right; font-weight: 500;">${count.toLocaleString()}</td></tr>`;
   }
   
+  // Risks
   const risks = JSON.parse(report.riskEventsJson);
   const tbodyR = document.querySelector('#tableRisks tbody');
   tbodyR.innerHTML = '';
@@ -48,12 +58,83 @@ function renderReport(report) {
     if (r.severity === 'high' || r.severity === 'critical') highRiskCount++;
     tbodyR.innerHTML += `<tr>
       <td><span class="badge ${r.severity}">${r.severity}</span></td>
-      <td>${r.reason}</td>
-      <td>${r.evidence}</td>
-      <td>${r.relatedIpHash || '-'}</td>
+      <td style="font-weight: 500;">${r.reason}</td>
+      <td style="color: var(--text-secondary);">${r.evidence}</td>
+      <td><span class="code-snippet">${r.relatedIpHash || '-'}</span></td>
     </tr>`;
   });
-  document.getElementById('valRisks').innerText = highRiskCount;
+  if (risks.length === 0) {
+    tbodyR.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No risk events detected.</td></tr>`;
+  }
+  document.getElementById('valRisks').innerText = highRiskCount.toLocaleString();
+
+  // Chart
+  renderChart(JSON.parse(report.statusBreakdownJson));
+}
+
+function renderChart(statusData) {
+  const ctx = document.getElementById('statusChart').getContext('2d');
+  
+  if (statusChartInstance) {
+    statusChartInstance.destroy();
+  }
+
+  const labels = Object.keys(statusData);
+  const data = Object.values(statusData);
+  
+  // Assign colors based on status family
+  const bgColors = labels.map(status => {
+    if (status.startsWith('2')) return 'rgba(34, 197, 94, 0.6)'; // Success green
+    if (status.startsWith('3')) return 'rgba(59, 130, 246, 0.6)'; // Redirect blue
+    if (status.startsWith('4')) return 'rgba(234, 179, 8, 0.6)';  // Client error yellow
+    if (status.startsWith('5')) return 'rgba(239, 68, 68, 0.6)';  // Server error red
+    return 'rgba(148, 163, 184, 0.6)';
+  });
+  
+  const borderColors = bgColors.map(c => c.replace('0.6)', '1)'));
+
+  Chart.defaults.color = '#94a3b8';
+  Chart.defaults.font.family = "'Inter', sans-serif";
+
+  statusChartInstance = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Requests',
+        data: data,
+        backgroundColor: bgColors,
+        borderColor: borderColors,
+        borderWidth: 1,
+        borderRadius: 4
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15, 17, 23, 0.9)',
+          titleColor: '#fff',
+          bodyColor: '#cbd5e1',
+          borderColor: '#262c3d',
+          borderWidth: 1,
+          padding: 10
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: 'rgba(38, 44, 61, 0.5)' },
+          ticks: { precision: 0 }
+        },
+        x: {
+          grid: { display: false }
+        }
+      }
+    }
+  });
 }
 
 function renderReportList(reports) {
@@ -62,26 +143,47 @@ function renderReportList(reports) {
   reports.slice(0, 10).forEach(r => {
     tbody.innerHTML += `<tr>
       <td>${new Date(r.analyzedAt).toLocaleString()}</td>
-      <td>${r.sourceName}</td>
-      <td>${r.totalRequests}</td>
-      <td><button onclick="renderReportById('${r.id}')">View</button></td>
+      <td><span class="badge low" style="background: rgba(255,255,255,0.05); color: #fff; border: none;">${r.sourceName}</span></td>
+      <td style="font-weight: 500;">${r.totalRequests.toLocaleString()}</td>
+      <td style="text-align: right;"><button class="btn" onclick="renderReportById('${r.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">View Report</button></td>
     </tr>`;
   });
 }
 
 async function renderReportById(id) {
-  const res = await fetch(`/api/reports/${id}`);
-  const report = await res.json();
-  renderReport(report);
+  try {
+    const res = await fetch(`/api/reports/${id}`);
+    if (res.ok) {
+      const report = await res.json();
+      renderReport(report);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  } catch (e) {
+    console.error("Error loading report", e);
+  }
 }
 
 async function runAnalysis() {
-  const res = await fetch('/api/analyze', { method: 'POST' });
-  if (res.ok) {
-    alert('Analysis started in background.');
-    setTimeout(fetchReports, 2000);
-  } else {
+  const btn = document.querySelector('button[onclick="runAnalysis()"]');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `<div class="spinner" style="width: 16px; height: 16px; margin: 0;"></div> Starting...`;
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/analyze', { method: 'POST' });
+    if (res.ok) {
+      setTimeout(() => {
+        fetchReports();
+        btn.innerHTML = originalHtml;
+        btn.disabled = false;
+      }, 3000);
+    } else {
+      throw new Error("Failed");
+    }
+  } catch (e) {
     alert('Error starting analysis');
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
   }
 }
 
@@ -89,17 +191,29 @@ async function analyzeSample() {
   const logs = document.getElementById('sampleLogs').value;
   if (!logs.trim()) return alert("Paste some logs first");
   
-  const res = await fetch('/api/analyze/sample', {
-    method: 'POST',
-    body: logs
-  });
-  if (res.ok) {
-    const report = await res.json();
-    renderReport(report);
-    document.getElementById('sampleModal').classList.add('hidden');
-    alert('Sample analyzed successfully');
-  } else {
-    alert('Error analyzing sample');
+  const btn = document.querySelector('button[onclick="analyzeSample()"]');
+  const originalHtml = btn.innerHTML;
+  btn.innerHTML = `Analyzing...`;
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/analyze/sample', {
+      method: 'POST',
+      body: logs
+    });
+    if (res.ok) {
+      const report = await res.json();
+      renderReport(report);
+      document.getElementById('sampleModal').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      alert('Error analyzing sample (maybe too large?)');
+    }
+  } catch (e) {
+    console.error(e);
+  } finally {
+    btn.innerHTML = originalHtml;
+    btn.disabled = false;
   }
 }
 

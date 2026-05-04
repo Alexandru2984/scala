@@ -9,87 +9,123 @@
 </head>
 <body>
   <header>
-    <h1>Scala LogRisk Pipeline</h1>
-    <div style="display:flex; gap:1rem;">
-      <button onclick="runAnalysis()">Run Analysis Now</button>
-      <button onclick="document.getElementById('sampleModal').classList.toggle('hidden')">Analyze Sample</button>
+    <div class="brand">
+      <div class="brand-icon"></div>
+      <h1>LogRisk Pipeline</h1>
+    </div>
+    <div style="display: flex; gap: 0.75rem;">
+      <button class="btn" onclick="document.getElementById('sampleModal').classList.toggle('hidden')">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+        Paste Sample
+      </button>
+      <button class="btn primary" onclick="runAnalysis()">
+        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+        Run Analysis
+      </button>
     </div>
   </header>
 
-  <div id="sampleModal" class="container hidden" style="background:var(--bg-card); border-bottom:1px solid var(--border);">
-    <h2>Analyze Log Sample</h2>
-    <p>Paste Nginx access logs (combined format):</p>
-    <textarea id="sampleLogs" rows="5"></textarea>
-    <br><br>
-    <button onclick="analyzeSample()">Submit Sample</button>
+  <div id="sampleModal" class="container hidden">
+    <div class="card">
+      <h2>Analyze Log Sample</h2>
+      <p class="text-muted" style="margin-bottom: 1rem;">Paste Nginx access logs (combined format) to run an isolated analysis without saving to the main timeline.</p>
+      <textarea id="sampleLogs" rows="6" placeholder='127.0.0.1 - - [04/May/2026:12:34:56 +0000] "GET / HTTP/1.1" 200 612 "-" "Mozilla/5.0"'></textarea>
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem;">
+        <button class="btn" onclick="document.getElementById('sampleModal').classList.add('hidden')">Cancel</button>
+        <button class="btn primary" onclick="analyzeSample()">Submit Sample</button>
+      </div>
+    </div>
   </div>
 
   <div class="container">
-    <h2 style="margin-bottom: 1rem;">Latest Report Summary</h2>
-    <div id="loading">Loading latest report...</div>
+    <div id="loading">
+      <div class="spinner"></div>
+      <p>Loading latest intelligence...</p>
+    </div>
     
     <div id="reportData" class="hidden">
-      <div class="grid">
-        <div class="card">
-          <h3>Total Requests</h3>
+      <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.5rem;">
+        <div>
+          <h2 style="margin-bottom: 0.25rem;">Latest Intelligence Report</h2>
+          <p class="text-muted">Analyzed at <span id="valTime" style="color: var(--text-primary); font-weight: 500;">-</span> • Source: <span id="valSource" style="color: var(--text-primary); font-weight: 500;">-</span></p>
+        </div>
+      </div>
+
+      <div class="dashboard-grid">
+        <div class="card stat-card">
+          <div class="label">Total Requests</div>
           <div class="value" id="valRequests">0</div>
         </div>
-        <div class="card">
-          <h3>Unique Clients</h3>
+        <div class="card stat-card">
+          <div class="label">Unique Client IPs</div>
           <div class="value" id="valClients">0</div>
         </div>
-        <div class="card">
-          <h3>High Risk Events</h3>
-          <div class="value" id="valRisks" style="color: var(--danger)">0</div>
+        <div class="card stat-card">
+          <div class="label">High Risk Events</div>
+          <div class="value text-danger" id="valRisks">0</div>
         </div>
-        <div class="card">
-          <h3>Analyzed At</h3>
-          <div class="value" id="valTime" style="font-size:1.2rem;">-</div>
+        
+        <div class="card chart-card">
+          <h3>Status Code Breakdown</h3>
+          <div style="position: relative; height: 250px; width: 100%;">
+            <canvas id="statusChart"></canvas>
+          </div>
         </div>
-      </div>
-
-      <div class="grid" style="grid-template-columns: 1fr 1fr;">
-        <div>
+        
+        <div class="card breakdown-card">
           <h3>Top Endpoints</h3>
-          <table id="tableEndpoints">
-            <thead><tr><th>Path</th><th>Count</th></tr></thead>
-            <tbody></tbody>
-          </table>
+          <div class="table-container">
+            <table id="tableEndpoints">
+              <thead><tr><th>Path</th><th style="text-align: right;">Count</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
-        <div>
-          <h3>Suspicious Agents</h3>
-          <table id="tableAgents">
-            <thead><tr><th>User Agent</th><th>Count</th></tr></thead>
-            <tbody></tbody>
-          </table>
+
+        <div class="card list-card">
+          <h3>Suspicious User Agents</h3>
+          <div class="table-container">
+            <table id="tableAgents">
+              <thead><tr><th>User Agent</th><th style="text-align: right;">Count</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card full-width-card">
+          <h3>Risk Events Evidence</h3>
+          <div class="table-container">
+            <table id="tableRisks">
+              <thead>
+                <tr>
+                  <th style="width: 100px;">Severity</th>
+                  <th style="width: 200px;">Reason</th>
+                  <th>Evidence</th>
+                  <th style="width: 180px;">Client Hash</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+        
+        <div class="card full-width-card">
+          <h3>Recent Reports History</h3>
+          <div class="table-container">
+            <table id="tableReports">
+              <thead>
+                <tr>
+                  <th>Analyzed At</th>
+                  <th>Source</th>
+                  <th>Requests</th>
+                  <th style="text-align: right;">Action</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
-
-      <h3>Risk Events</h3>
-      <table id="tableRisks">
-        <thead>
-          <tr>
-            <th>Severity</th>
-            <th>Reason</th>
-            <th>Evidence</th>
-            <th>Related IP Hash</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
-      
-      <h3>Recent Reports</h3>
-      <table id="tableReports">
-        <thead>
-          <tr>
-            <th>Analyzed At</th>
-            <th>Source</th>
-            <th>Requests</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
     </div>
   </div>
 
