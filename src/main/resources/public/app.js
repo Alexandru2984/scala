@@ -1,5 +1,15 @@
 let statusChartInstance = null;
 
+function escapeHtml(unsafe) {
+  if (typeof unsafe !== 'string') return unsafe;
+  return unsafe
+       .replace(/&/g, "&amp;")
+       .replace(/</g, "&lt;")
+       .replace(/>/g, "&gt;")
+       .replace(/"/g, "&quot;")
+       .replace(/'/g, "&#039;");
+}
+
 async function fetchReports() {
   try {
     const res = await fetch('/api/reports');
@@ -31,14 +41,14 @@ function renderReport(report) {
   document.getElementById('valRequests').innerText = report.totalRequests.toLocaleString();
   document.getElementById('valClients').innerText = report.uniqueClients.toLocaleString();
   document.getElementById('valTime').innerText = new Date(report.analyzedAt).toLocaleString();
-  document.getElementById('valSource').innerText = report.sourceName;
+  document.getElementById('valSource').innerText = escapeHtml(report.sourceName);
   
   // Endpoints
   const endpoints = JSON.parse(report.topEndpointsJson);
   const tbodyE = document.querySelector('#tableEndpoints tbody');
   tbodyE.innerHTML = '';
   for (const [path, count] of Object.entries(endpoints)) {
-    tbodyE.innerHTML += `<tr><td><span class="code-snippet">${path}</span></td><td style="text-align: right; font-weight: 500;">${count.toLocaleString()}</td></tr>`;
+    tbodyE.innerHTML += `<tr><td><span class="code-snippet">${escapeHtml(path)}</span></td><td style="text-align: right; font-weight: 500;">${count.toLocaleString()}</td></tr>`;
   }
   
   // Agents
@@ -46,7 +56,7 @@ function renderReport(report) {
   const tbodyA = document.querySelector('#tableAgents tbody');
   tbodyA.innerHTML = '';
   for (const [agent, count] of Object.entries(agents)) {
-    tbodyA.innerHTML += `<tr><td style="color: var(--text-secondary);">${agent || '<em>Empty User Agent</em>'}</td><td style="text-align: right; font-weight: 500;">${count.toLocaleString()}</td></tr>`;
+    tbodyA.innerHTML += `<tr><td style="color: var(--text-secondary);">${agent ? escapeHtml(agent) : '<em>Empty User Agent</em>'}</td><td style="text-align: right; font-weight: 500;">${count.toLocaleString()}</td></tr>`;
   }
   
   // Risks
@@ -57,10 +67,10 @@ function renderReport(report) {
   risks.forEach(r => {
     if (r.severity === 'high' || r.severity === 'critical') highRiskCount++;
     tbodyR.innerHTML += `<tr>
-      <td><span class="badge ${r.severity}">${r.severity}</span></td>
-      <td style="font-weight: 500;">${r.reason}</td>
-      <td style="color: var(--text-secondary);">${r.evidence}</td>
-      <td><span class="code-snippet">${r.relatedIpHash || '-'}</span></td>
+      <td><span class="badge ${escapeHtml(r.severity)}">${escapeHtml(r.severity)}</span></td>
+      <td style="font-weight: 500;">${escapeHtml(r.reason)}</td>
+      <td style="color: var(--text-secondary);">${escapeHtml(r.evidence)}</td>
+      <td><span class="code-snippet">${escapeHtml(r.relatedIpHash) || '-'}</span></td>
     </tr>`;
   });
   if (risks.length === 0) {
@@ -143,7 +153,7 @@ function renderReportList(reports) {
   reports.slice(0, 10).forEach(r => {
     tbody.innerHTML += `<tr>
       <td>${new Date(r.analyzedAt).toLocaleString()}</td>
-      <td><span class="badge low" style="background: rgba(255,255,255,0.05); color: #fff; border: none;">${r.sourceName}</span></td>
+      <td><span class="badge low" style="background: rgba(255,255,255,0.05); color: #fff; border: none;">${escapeHtml(r.sourceName)}</span></td>
       <td style="font-weight: 500;">${r.totalRequests.toLocaleString()}</td>
       <td style="text-align: right;"><button class="btn" onclick="renderReportById('${r.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">View Report</button></td>
     </tr>`;

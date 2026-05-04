@@ -21,6 +21,9 @@ object Aggregator {
     val ip404Count = mutable.Map.empty[String, Int].withDefaultValue(0)
     val ipRequestCount = mutable.Map.empty[String, Int].withDefaultValue(0)
     
+    // Group sensitive paths by IP Hash to avoid spam
+    val ipSensitivePaths = mutable.Map.empty[String, mutable.Set[String]]
+    
     val riskEvents = mutable.ListBuffer.empty[RiskEvent]
     
     val sensitivePaths = Set("/.env", "/wp-admin", "/wp-login.php", "/.git", "/phpmyadmin", "/admin", "/server-status", "/actuator", "/debug")
@@ -48,23 +51,33 @@ object Aggregator {
         suspiciousAgents(entry.userAgent) += 1
       }
       
-      // Immediate risks: sensitive path
+      // Record sensitive path probes
       if (sensitivePaths.exists(entry.path.contains)) {
-        riskEvents += RiskEvent(
-          score = 80,
-          severity = "high",
-          reason = "Sensitive path probe",
-          evidence = s"Path accessed: ${entry.path}",
-          firstSeen = entry.timestamp,
-          lastSeen = entry.timestamp,
-          requestCount = 1,
-          relatedIpHash = Some(ipHash),
-          relatedEndpoint = Some(entry.path)
-        )
+        val pathsSet = ipSensitivePaths.getOrElseUpdate(ipHash, mutable.Set.empty[String])
+        if (pathsSet.size < 5) { // Keep only up to 5 examples to save space
+          pathsSet += entry.path
+        }
       }
     }
     
     // Aggregate risks
+    
+    // 1. Sensitive Path Probes (Deduplicated)
+    ipSensitivePaths.foreach { case (ipHash, paths) =>
+      val examples = paths.take(3).mkString(", ") + (if (paths.size > 3) "..." else "")
+      riskEvents += RiskEvent(
+        score = 80,
+        severity = "high",
+        reason = "Multiple sensitive path probes",
+        evidence = s"Paths accessed: $examples",
+        firstSeen = start,
+        lastSeen = end,
+        requestCount = paths.size, // this is just unique sample size now, but it's enough indicator
+        relatedIpHash = Some(ipHash)
+      )
+    }
+
+    // 2. High 404 Count
     ip404Count.foreach { case (ipHash, count) =>
       if (count > 20) {
         riskEvents += RiskEvent(
@@ -80,6 +93,7 @@ object Aggregator {
       }
     }
     
+    // 3. Burst Traffic
     ipRequestCount.foreach { case (ipHash, count) =>
       if (count > 1000) {
         riskEvents += RiskEvent(
