@@ -1,4 +1,5 @@
 let statusChartInstance = null;
+let currentRisks = [];
 
 function escapeHtml(unsafe) {
   if (typeof unsafe !== 'string') return unsafe;
@@ -60,12 +61,27 @@ function renderReport(report) {
   }
   
   // Risks
-  const risks = JSON.parse(report.riskEventsJson);
+  currentRisks = JSON.parse(report.riskEventsJson);
+  let highRiskCount = 0;
+  currentRisks.forEach(r => {
+    if (r.severity === 'high' || r.severity === 'critical') highRiskCount++;
+  });
+  document.getElementById('valRisks').innerText = highRiskCount.toLocaleString();
+  
+  renderRiskTable(currentRisks);
+  
+  // Reset search
+  const searchInput = document.getElementById('searchRisks');
+  if(searchInput) searchInput.value = '';
+
+  // Chart
+  renderChart(JSON.parse(report.statusBreakdownJson));
+}
+
+function renderRiskTable(risksToRender) {
   const tbodyR = document.querySelector('#tableRisks tbody');
   tbodyR.innerHTML = '';
-  let highRiskCount = 0;
-  risks.forEach(r => {
-    if (r.severity === 'high' || r.severity === 'critical') highRiskCount++;
+  risksToRender.forEach(r => {
     tbodyR.innerHTML += `<tr>
       <td><span class="badge ${escapeHtml(r.severity)}">${escapeHtml(r.severity)}</span></td>
       <td style="font-weight: 500;">${escapeHtml(r.reason)}</td>
@@ -73,13 +89,55 @@ function renderReport(report) {
       <td><span class="code-snippet">${escapeHtml(r.relatedIpHash) || '-'}</span></td>
     </tr>`;
   });
-  if (risks.length === 0) {
-    tbodyR.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No risk events detected.</td></tr>`;
+  if (risksToRender.length === 0) {
+    tbodyR.innerHTML = `<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No risk events matched.</td></tr>`;
   }
-  document.getElementById('valRisks').innerText = highRiskCount.toLocaleString();
+}
 
-  // Chart
-  renderChart(JSON.parse(report.statusBreakdownJson));
+function filterRisks() {
+  const query = document.getElementById('searchRisks').value.toLowerCase();
+  const filtered = currentRisks.filter(r => {
+    const searchString = \`\${r.reason} \${r.evidence} \${r.relatedIpHash || ''} \${r.severity}\`.toLowerCase();
+    return searchString.includes(query);
+  });
+  renderRiskTable(filtered);
+}
+
+function exportRisksCSV() {
+  if (currentRisks.length === 0) return alert("No data to export");
+  
+  // Get filtered data if search is active
+  const query = document.getElementById('searchRisks').value.toLowerCase();
+  let exportData = currentRisks;
+  if (query) {
+    exportData = currentRisks.filter(r => {
+      const searchString = \`\${r.reason} \${r.evidence} \${r.relatedIpHash || ''} \${r.severity}\`.toLowerCase();
+      return searchString.includes(query);
+    });
+  }
+
+  const headers = ['Severity', 'Reason', 'Evidence', 'Client Hash', 'First Seen', 'Last Seen', 'Request Count'];
+  const rows = exportData.map(r => [
+    r.severity,
+    \`"\${(r.reason || '').replace(/"/g, '""')}"\`,
+    \`"\${(r.evidence || '').replace(/"/g, '""')}"\`,
+    r.relatedIpHash || '',
+    r.firstSeen,
+    r.lastSeen,
+    r.requestCount
+  ]);
+  
+  const csvContent = "data:text/csv;charset=utf-8," 
+    + headers.join(",") + "\\n" 
+    + rows.map(e => e.join(",")).join("\\n");
+    
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement("a");
+  link.setAttribute("href", encodedUri);
+  link.setAttribute("download", \`logrisk_export_\${new Date().getTime()}.csv\`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 function renderChart(statusData) {
