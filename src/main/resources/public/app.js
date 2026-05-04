@@ -97,7 +97,7 @@ function renderRiskTable(risksToRender) {
 function filterRisks() {
   const query = document.getElementById('searchRisks').value.toLowerCase();
   const filtered = currentRisks.filter(r => {
-    const searchString = \`\${r.reason} \${r.evidence} \${r.relatedIpHash || ''} \${r.severity}\`.toLowerCase();
+    const searchString = `${r.reason} ${r.evidence} ${r.relatedIpHash || ''} ${r.severity}`.toLowerCase();
     return searchString.includes(query);
   });
   renderRiskTable(filtered);
@@ -111,7 +111,7 @@ function exportRisksCSV() {
   let exportData = currentRisks;
   if (query) {
     exportData = currentRisks.filter(r => {
-      const searchString = \`\${r.reason} \${r.evidence} \${r.relatedIpHash || ''} \${r.severity}\`.toLowerCase();
+      const searchString = `${r.reason} ${r.evidence} ${r.relatedIpHash || ''} ${r.severity}`.toLowerCase();
       return searchString.includes(query);
     });
   }
@@ -119,8 +119,8 @@ function exportRisksCSV() {
   const headers = ['Severity', 'Reason', 'Evidence', 'Client Hash', 'First Seen', 'Last Seen', 'Request Count'];
   const rows = exportData.map(r => [
     r.severity,
-    \`"\${(r.reason || '').replace(/"/g, '""')}"\`,
-    \`"\${(r.evidence || '').replace(/"/g, '""')}"\`,
+    `"${(r.reason || '').replace(/"/g, '""')}"`,
+    `"${(r.evidence || '').replace(/"/g, '""')}"`,
     r.relatedIpHash || '',
     r.firstSeen,
     r.lastSeen,
@@ -128,13 +128,13 @@ function exportRisksCSV() {
   ]);
   
   const csvContent = "data:text/csv;charset=utf-8," 
-    + headers.join(",") + "\\n" 
-    + rows.map(e => e.join(",")).join("\\n");
+    + headers.join(",") + "\n" 
+    + rows.map(e => e.join(",")).join("\n");
     
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement("a");
   link.setAttribute("href", encodedUri);
-  link.setAttribute("download", \`logrisk_export_\${new Date().getTime()}.csv\`);
+  link.setAttribute("download", `logrisk_export_${new Date().getTime()}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

@@ -22,10 +22,7 @@ object Main extends IOApp.Simple {
 
     // We protect the static assets too if we want, but usually it's fine.
     // Dashboard handles index.html and report.html
-    val httpApp = Router(
-      "/" -> (publicRoutes <+> dashboard <+> static),
-      "/" -> protectedApi
-    ).orNotFound
+    val httpApp = (publicRoutes <+> dashboard <+> static <+> protectedApi).orNotFound
 
     for {
       _ <- IO.println(s"Starting Scala LogRisk Pipeline in ${config.appEnv}")
