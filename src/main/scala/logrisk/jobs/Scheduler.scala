@@ -3,7 +3,7 @@ package logrisk.jobs
 import cats.effect.*
 import cats.syntax.all.*
 import logrisk.{Config, AppConfig}
-import logrisk.domain.{LogEntry, Report}
+import logrisk.domain.{LogEntry, Report, RiskEvent}
 import logrisk.parser.NginxParser
 import logrisk.pipeline.Aggregator
 import logrisk.storage.ReportRepository
@@ -14,6 +14,8 @@ import java.util.UUID
 import scala.concurrent.duration.*
 import io.circe.syntax.*
 import doobie.implicits.*
+import java.net.URI
+import java.net.http.{HttpClient, HttpRequest, HttpResponse}
 
 object Scheduler {
 
@@ -31,6 +33,25 @@ object Scheduler {
       }
     }
   }
+
+  def sendWebhookAlert(webhookUrl: String, riskEvents: List[RiskEvent]): IO[Unit] = IO.blocking {
+    if (webhookUrl.nonEmpty && riskEvents.exists(r => r.severity == "critical" || r.severity == "high")) {
+      val criticals = riskEvents.count(_.severity == "critical")
+      val highs = riskEvents.count(_.severity == "high")
+      
+      val text = s"🚨 **LogRisk Alert** 🚨\\nDetected **$criticals Critical** and **$highs High** risk events in the latest log analysis.\\nPlease check the dashboard for details."
+      val json = s"""{"content": "$text"}"""
+      
+      val client = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(5)).build()
+      val request = HttpRequest.newBuilder()
+        .uri(URI.create(webhookUrl))
+        .header("Content-Type", "application/json")
+        .POST(HttpRequest.BodyPublishers.ofString(json))
+        .build()
+      
+      client.send(request, HttpResponse.BodyHandlers.ofString())
+    }
+  }.attempt.void
 
   def runAnalysis(config: AppConfig, sourceName: String = "scheduled"): IO[Unit] = {
     val paths = config.logInputPaths.split(",").map(_.trim).toList
@@ -66,6 +87,7 @@ object Scheduler {
         
         ReportRepository.insert(report).transact(ReportRepository.transactor) *>
         ReportRepository.cleanup(config.maxReports).transact(ReportRepository.transactor) *>
+        sendWebhookAlert(config.alertWebhookUrl, riskEvents) *>
         IO.println(s"Saved report ${report.id}")
       } else {
         IO.println("No entries to analyze.")

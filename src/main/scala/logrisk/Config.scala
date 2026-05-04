@@ -13,7 +13,8 @@ case class AppConfig(
   storeRawLogs: Boolean,
   anonymizeIps: Boolean,
   ipHashSecret: String,
-  maxReports: Int
+  maxReports: Int,
+  alertWebhookUrl: String
 )
 
 object Config {
@@ -39,7 +40,8 @@ object Config {
       storeRawLogs = getEnv("STORE_RAW_LOGS", "false").toBoolean,
       anonymizeIps = getEnv("ANONYMIZE_IPS", "true").toBoolean,
       ipHashSecret = getEnv("IP_HASH_SECRET", "secret"),
-      maxReports = getEnv("MAX_REPORTS", "100").toInt
+      maxReports = getEnv("MAX_REPORTS", "100").toInt,
+      alertWebhookUrl = getEnv("ALERT_WEBHOOK_URL", "")
     )
   }
 }
